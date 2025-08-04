@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fibonacci Spiral Visualization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0c0a09;
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 320px;
+            flex-shrink: 0;
+            min-width: 250px;
+            background: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5);
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(30, 144, 255, 0.7);
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827;
+            border-radius: 0.5rem;
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; }
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; background: #4b5563; border-radius: 5px; outline: none; transition: opacity .2s; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: #67e8f9; border-radius: 50%; cursor: pointer; }
+        input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; background: #67e8f9; border-radius: 50%; cursor: pointer; }
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white">Fibonacci Spiral Visualization</h1>
+    </header>
+
+    <div class="main-container">
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="terms" class="block text-sm font-medium text-gray-300">Number of Iterations: <span id="termsValue">10</span></label>
+                        <input id="terms" type="range" min="1" max="25" value="8" class="w-full">
+                    </div>
+                    <div>
+                        <label for="zoom" class="block text-sm font-medium text-gray-300">Zoom: <span id="zoomValue">10</span></label>
+                        <input id="zoom" type="range" min="1" max="150" value="10" class="w-full">
+                    </div>
+                     <div>
+                        <p class="text-sm font-medium text-gray-300">Fibonacci Number:</p>
+                        <p id="fibValue" class="text-2xl font-bold text-cyan-400 mt-1">21</p>
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">The Golden Spiral</h3>
+                     <p class="text-gray-400 text-sm">
+                        This animation draws a spiral based on the Fibonacci sequence, a series where each number is the sum of the two preceding ones (1, 1, 2, 3, 5, ...).
+                     </p>
+                     <ul class="list-disc list-inside space-y-1 text-gray-300 text-sm mt-2">
+                        <li>The spiral is constructed from a series of connected quarter-circle arcs.</li>
+                        <li>The radius of each arc is a number from the Fibonacci sequence.</li>
+                        <li>This pattern appears frequently in nature, from seashells to spiral galaxies.</li>
+                     </ul>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">Inspired by Nature's Code</p>
+            </footer>
+        </div>
+
+        <div id="resize-handle"></div>
+
+        <div id="right-panel">
+            <canvas id="fibonacciCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const canvas = document.getElementById('fibonacciCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+            const termsSlider = document.getElementById('terms');
+            const termsValueSpan = document.getElementById('termsValue');
+            const fibValueSpan = document.getElementById('fibValue');
+            const zoomSlider = document.getElementById('zoom');
+            const zoomValueSpan = document.getElementById('zoomValue');
+
+            // --- State Variables ---
+            let numTerms = 8;
+            let isResizing = false;
+            let fibSequence = [];
+            let scale = 10;
+
+            // --- Fibonacci Calculation ---
+            function calculateFibonacci(n) {
+                let sequence = [0, 1];
+                for (let i = 2; i <= n + 1; i++) {
+                    sequence[i] = sequence[i - 1] + sequence[i - 2];
+                }
+                fibSequence = sequence;
+                
+                if (n > 0) {
+                    fibValueSpan.textContent = fibSequence[n].toLocaleString();
+                } else {
+                    fibValueSpan.textContent = '0';
+                }
+            }
+
+            // --- Canvas Drawing (Continuous Spiral) ---
+            function drawSpiral() {
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+
+                // --- Draw Grid and Axes ---
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+                ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                ctx.font = "10px Poppins";
+                ctx.lineWidth = 0.5;
+
+                const maxVisibleValue = Math.max(centerX, centerY) / scale;
+                const powerOf10 = Math.pow(10, Math.floor(Math.log10(maxVisibleValue)));
+                let gridStep = powerOf10;
+                if (maxVisibleValue / gridStep < 2.5) gridStep /= 5;
+                if (maxVisibleValue / gridStep < 5) gridStep /= 2;
+                if (gridStep === 0 || !isFinite(gridStep)) gridStep = 1;
+
+                for (let i = gridStep; i * scale < centerY; i += gridStep) {
+                    ctx.beginPath();
+                    ctx.moveTo(-centerX, -i * scale); ctx.lineTo(centerX, -i * scale); ctx.stroke();
+                    ctx.fillText(i.toPrecision(3), 5, -i * scale + 4);
+                    ctx.beginPath();
+                    ctx.moveTo(-centerX, i * scale); ctx.lineTo(centerX, i * scale); ctx.stroke();
+                    ctx.fillText(i.toPrecision(3), 5, i * scale + 4);
+                }
+                for (let i = gridStep; i * scale < centerX; i += gridStep) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * scale, -centerY); ctx.lineTo(i * scale, centerY); ctx.stroke();
+                    ctx.fillText(i.toPrecision(3), i * scale + 4, 12);
+                    ctx.beginPath();
+                    ctx.moveTo(-i * scale, -centerY); ctx.lineTo(-i * scale, centerY); ctx.stroke();
+                    ctx.fillText(i.toPrecision(3), -i * scale + 4, 12);
+                }
+                
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.lineWidth = 1;
+                ctx.font = "12px Poppins";
+                ctx.beginPath(); ctx.moveTo(-centerX, 0); ctx.lineTo(centerX, 0); ctx.stroke();
+                ctx.fillText("X", centerX - 20, -10);
+                ctx.beginPath(); ctx.moveTo(0, -centerY); ctx.lineTo(0, centerY); ctx.stroke();
+                ctx.fillText("Y", 10, -centerY + 20);
+                ctx.fillText("0", 5, 15);
+
+                if (numTerms < 1) {
+                    ctx.restore();
+                    return;
+                }
+
+                // --- Draw Spiral ---
+                ctx.strokeStyle = '#67e8f9';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                let px = 0; // "Pen" position X
+                let py = 0; // "Pen" position Y
+                ctx.moveTo(px, py);
+
+                for (let i = 1; i <= numTerms; i++) {
+                    const fib = fibSequence[i] * scale;
+                    
+                    // This new logic calculates the arc center based on the current pen position
+                    // ensuring the segments connect perfectly.
+                    switch ((i - 1) % 4) {
+                        case 0: // Moves right, arc is below
+                            ctx.arc(px, py + fib, fib, -Math.PI / 2, 0);
+                            px += fib;
+                            py += fib;
+                            break;
+                        case 1: // Moves up, arc is to the left
+                            ctx.arc(px - fib, py, fib, 0, Math.PI / 2);
+                            px -= fib;
+                            py += fib;
+                            break;
+                        case 2: // Moves left, arc is above
+                            ctx.arc(px, py - fib, fib, Math.PI / 2, Math.PI);
+                            px -= fib;
+                            py -= fib;
+                            break;
+                        case 3: // Moves down, arc is to the right
+                            ctx.arc(px + fib, py, fib, Math.PI, Math.PI * 1.5);
+                            px += fib;
+                            py -= fib;
+                            break;
+                    }
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+            
+            function updateVisualization() {
+                numTerms = parseInt(termsSlider.value);
+                termsValueSpan.textContent = numTerms;
+                calculateFibonacci(numTerms);
+                drawSpiral();
+            }
+
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                updateVisualization();
+            }
+
+            // --- Event Listeners ---
+            termsSlider.addEventListener('input', updateVisualization);
+            
+            zoomSlider.addEventListener('input', () => {
+                scale = parseInt(zoomSlider.value);
+                zoomValueSpan.textContent = `${scale}`;
+                drawSpiral();
+            });
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 250 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+            // --- Initial Setup ---
+            zoomValueSpan.textContent = zoomSlider.value;
+            resizeCanvas();
+        });
+    </script>
+</body>
+</html>
